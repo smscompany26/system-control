@@ -278,21 +278,31 @@ async function createInitialStatus() {
   await loadStatus();
 }
 
+let saving = false;
 async function saveStatus() {
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(statusData, null, 2))));
-  const res = await ghFetch(STATUS_FILE, 'PUT', {
-    message: 'Update system status',
-    content: encoded,
-    sha: fileSha
-  });
-  if (res.ok) {
-    const data = await res.json();
-    fileSha = data.content.sha;
-    addLog('SYNC', 'act', 'Status saved to GitHub');
-  } else {
-    addLog('ERROR', 'err', 'Failed to save');
-    await loadStatus(); // reload to get fresh sha
-  }
+  if (saving) return;
+  saving = true;
+  try {
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(statusData, null, 2))));
+    const res = await ghFetch(STATUS_FILE, 'PUT', {
+      message: 'Update system status',
+      content: encoded,
+      sha: fileSha
+    });
+    if (res.ok) {
+      const data = await res.json();
+      fileSha = data.content.sha;
+      addLog('SYNC', 'act', 'Status saved to GitHub');
+    } else {
+      const errText = await res.text().catch(()=>'');
+      addLog('ERROR', 'err', `Save failed (${res.status}): ${errText.slice(0,100)}`);
+      // Refresh SHA without re-rendering to avoid loops
+      try {
+        const r2 = await ghFetch(STATUS_FILE, 'GET');
+        if (r2.ok) { const d = await r2.json(); fileSha = d.sha; }
+      } catch(e) {}
+    }
+  } finally { saving = false; }
 }
 
 function renderSystems() {

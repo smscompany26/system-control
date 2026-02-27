@@ -9,7 +9,7 @@
       "disabledAt": null,
       "disabledBy": null,
       "trial": {
-        "enabled": true,
+        "enabled": false,
         "endDate": "2026-03-01T19:59:00.000Z",
         "warnDays": 3,
         "message": "للاستمرار في استخدام جميع المميزات، يرجى ترقية الاشتراك قبل انتهاء الفترة التجريبية."

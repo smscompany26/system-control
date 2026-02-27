@@ -294,6 +294,27 @@ function renderSystems() {
               <input type="number" class="time-input" id="mins-${key}" value="0" min="0"><span class="time-label">دقيقة</span>
             </div>
           </div>
+          ${sys.trial ? `
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+              <span style="font-size:14px;font-weight:600;">⏰ الفترة التجريبية</span>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#7d8590;">
+                <input type="checkbox" id="trial-on-${key}" ${sys.trial.enabled?'checked':''} onchange="toggleTrial('${key}',this.checked)" style="accent-color:#6c3ce9;width:16px;height:16px;">
+                ${sys.trial.enabled?'مفعّلة':'معطّلة'}
+              </label>
+            </div>
+            <div class="ctrl-row" style="gap:8px;">
+              <label style="font-size:12px;color:#7d8590;">تاريخ الانتهاء:</label>
+              <input type="datetime-local" id="trial-date-${key}" value="${(sys.trial.endDate||'').slice(0,16)}" style="padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:12px;font-family:inherit;">
+              <button class="btn" style="padding:8px 16px;background:rgba(108,60,233,0.2);color:#8b5cf6;font-size:12px;" onclick="updateTrialDate('${key}')">حفظ</button>
+            </div>
+            <div class="ctrl-row" style="margin-top:8px;gap:8px;">
+              <label style="font-size:12px;color:#7d8590;">تحذير قبل (أيام):</label>
+              <input type="number" class="time-input" id="trial-warn-${key}" value="${sys.trial.warnDays||3}" min="1" max="30" style="width:50px;">
+              <button class="btn" style="padding:8px 16px;background:rgba(108,60,233,0.2);color:#8b5cf6;font-size:12px;" onclick="updateTrialWarn('${key}')">حفظ</button>
+            </div>
+          </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -367,6 +388,32 @@ async function tempDisable(key) {
   renderSystems();
   const timeStr = (d?d+'d ':'') + (h?h+'h ':'') + (m?m+'m':'');
   addLog('TEMP-OFF', 'warn', statusData.systems[key].name + ' → معطّل ' + timeStr);
+}
+
+async function toggleTrial(key, enabled) {
+  if (!statusData.systems[key].trial) statusData.systems[key].trial = {};
+  statusData.systems[key].trial.enabled = enabled;
+  await saveStatus();
+  renderSystems();
+  addLog(enabled?'TRIAL-ON':'TRIAL-OFF', enabled?'act':'warn', statusData.systems[key].name + ' trial ' + (enabled?'enabled':'disabled'));
+}
+
+async function updateTrialDate(key) {
+  const val = document.getElementById(`trial-date-${key}`).value;
+  if (!val) { alert('حدد التاريخ'); return; }
+  if (!statusData.systems[key].trial) statusData.systems[key].trial = {};
+  statusData.systems[key].trial.endDate = new Date(val).toISOString();
+  await saveStatus();
+  renderSystems();
+  addLog('TRIAL', 'act', 'End date → ' + val);
+}
+
+async function updateTrialWarn(key) {
+  const val = parseInt(document.getElementById(`trial-warn-${key}`).value) || 3;
+  if (!statusData.systems[key].trial) statusData.systems[key].trial = {};
+  statusData.systems[key].trial.warnDays = val;
+  await saveStatus();
+  addLog('TRIAL', 'act', 'Warn days → ' + val);
 }
 
 function addLog(tag, cls, msg) {

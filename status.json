@@ -7,7 +7,13 @@
       "disableType": null,
       "disableUntil": null,
       "disabledAt": null,
-      "disabledBy": "Kyrolos"
+      "disabledBy": "Kyrolos",
+      "trial": {
+        "enabled": true,
+        "endDate": "2026-03-01T23:59:59",
+        "warnDays": 3,
+        "message": "للاستمرار في استخدام جميع المميزات، يرجى ترقية الاشتراك قبل انتهاء الفترة التجريبية."
+      }
     }
   },
   "owner": {

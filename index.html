@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>System Control Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Cairo',sans-serif; background:#0a0e14; color:#e6edf3; min-height:100vh; }
+.bg-mesh { position:fixed; inset:0; z-index:0; pointer-events:none;
+  background: radial-gradient(ellipse 600px 400px at 20% 30%, rgba(108,60,233,0.12), transparent),
+              radial-gradient(ellipse 500px 350px at 80% 70%, rgba(248,81,73,0.08), transparent); }
+
+/* Auth */
+.auth-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; position:relative; z-index:1; }
+.auth-box { background:rgba(22,27,34,0.9); border:1px solid #30363d; border-radius:16px; padding:40px; max-width:380px; width:90%; text-align:center; }
+.auth-box h1 { font-size:22px; margin-bottom:8px; }
+.auth-box p { color:#7d8590; font-size:13px; margin-bottom:24px; }
+.auth-box input { width:100%; padding:12px 16px; background:#0d1117; border:1px solid #30363d; border-radius:10px; color:#e6edf3; font-size:14px; font-family:inherit; outline:none; margin-bottom:16px; }
+.auth-box input:focus { border-color:#6c3ce9; }
+.auth-box button { width:100%; padding:12px; background:linear-gradient(135deg,#6c3ce9,#8b5cf6); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+.auth-err { color:#f85149; font-size:12px; margin-top:8px; display:none; }
+
+/* Main */
+.container { position:relative; z-index:1; max-width:800px; margin:0 auto; padding:32px 20px; display:none; }
+.header { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; }
+.header h1 { font-size:24px; font-weight:800; }
+.header .badge { padding:4px 12px; border-radius:20px; font-size:11px; font-weight:600; }
+
+/* System Card */
+.system-card {
+  background:rgba(22,27,34,0.8); border:1px solid rgba(48,54,61,0.6);
+  border-radius:16px; padding:24px; margin-bottom:20px;
+  backdrop-filter:blur(20px);
+}
+.sys-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+.sys-name { font-size:18px; font-weight:700; }
+.sys-url { font-size:12px; color:#7d8590; }
+.sys-status {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600;
+}
+.sys-status.active { background:rgba(63,185,80,0.15); color:#3fb950; }
+.sys-status.temp-disabled { background:rgba(210,153,34,0.15); color:#d29922; }
+.sys-status.disabled { background:rgba(248,81,73,0.15); color:#f85149; }
+.sys-status .dot { width:8px; height:8px; border-radius:50%; }
+.sys-status.active .dot { background:#3fb950; }
+.sys-status.temp-disabled .dot { background:#d29922; animation:pulse 1.5s infinite; }
+.sys-status.disabled .dot { background:#f85149; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+.controls { display:flex; flex-direction:column; gap:12px; margin-top:20px; }
+.ctrl-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.btn {
+  padding:10px 20px; border-radius:10px; font-size:13px; font-weight:600;
+  cursor:pointer; border:none; font-family:'Cairo',sans-serif; transition:all 0.2s;
+}
+.btn-activate { background:linear-gradient(135deg,#238636,#2ea043); color:#fff; }
+.btn-activate:hover { box-shadow:0 4px 16px rgba(35,134,54,0.4); }
+.btn-temp { background:linear-gradient(135deg,#9e6a03,#d29922); color:#fff; }
+.btn-temp:hover { box-shadow:0 4px 16px rgba(210,153,34,0.4); }
+.btn-disable { background:linear-gradient(135deg,#da3633,#f85149); color:#fff; }
+.btn-disable:hover { box-shadow:0 4px 16px rgba(248,81,73,0.4); }
+
+.time-inputs { display:flex; gap:8px; align-items:center; }
+.time-input {
+  width:60px; padding:8px; background:#0d1117; border:1px solid #30363d;
+  border-radius:8px; color:#e6edf3; font-size:13px; text-align:center;
+  font-family:'Cairo',sans-serif;
+}
+.time-label { color:#7d8590; font-size:11px; min-width:40px; }
+
+.countdown {
+  font-family:'JetBrains Mono',monospace; font-size:14px; color:#d29922;
+  margin-top:8px; direction:ltr; text-align:center;
+  padding:10px; background:rgba(210,153,34,0.08); border-radius:8px;
+}
+
+/* Terminal Log */
+.log-box {
+  background:#000; border:1px solid #21262d; border-radius:12px;
+  overflow:hidden; margin-top:24px;
+  font-family:'JetBrains Mono',monospace;
+}
+.log-header { display:flex; align-items:center; gap:6px; padding:10px 14px; background:#1a1a1a; border-bottom:1px solid #21262d; }
+.log-dot { width:10px; height:10px; border-radius:50%; }
+.log-dot.r { background:#ff5f56; } .log-dot.y { background:#ffbd2e; } .log-dot.g { background:#27c93f; }
+.log-title { font-size:11px; color:#666; margin-right:10px; }
+.log-body { padding:12px 14px; max-height:200px; overflow-y:auto; direction:ltr; text-align:left; }
+.log-line { font-size:11px; line-height:2; color:#8b949e; }
+.log-line .ts { color:#484f58; } .log-line .act { color:#98c379; } .log-line .warn { color:#e5c07b; } .log-line .err { color:#e06c75; }
+
+.empty-msg { text-align:center; padding:40px; color:#7d8590; }
+
+@media(max-width:640px) {
+  .header h1 { font-size:20px; }
+  .ctrl-row { flex-direction:column; align-items:stretch; }
+  .time-inputs { justify-content:center; }
+}
+</style>
+</head>
+<body>
+<div class="bg-mesh"></div>
+
+<!-- Auth Screen -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <div style="font-size:40px;margin-bottom:16px;">🔐</div>
+    <h1>System Control</h1>
+    <p>لوحة التحكم في الأنظمة</p>
+    <input type="text" id="authToken" placeholder="GitHub Token" style="margin-bottom:8px;direction:ltr;text-align:left;font-family:monospace;font-size:12px;" autocomplete="off">
+    <input type="password" id="authPass" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">دخول</button>
+    <p class="auth-err" id="authErr">كلمة مرور خاطئة</p>
+  </div>
+</div>
+
+<!-- Main Panel -->
+<div class="container" id="mainPanel">
+  <div class="header">
+    <h1>⚙️ لوحة التحكم</h1>
+    <span id="systemCount" class="badge" style="background:rgba(108,60,233,0.15);color:#8b5cf6;"></span>
+  </div>
+
+  <div id="systemsList"></div>
+
+  <div class="log-box">
+    <div class="log-header">
+      <div class="log-dot r"></div><div class="log-dot y"></div><div class="log-dot g"></div>
+      <span class="log-title">control-panel.log</span>
+    </div>
+    <div class="log-body" id="logBody">
+      <div class="log-line"><span class="act">$</span> ready</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let GITHUB_TOKEN = '';
+const REPO = 'smscompany26/system-control';
+const STATUS_FILE = 'status.json';
+const PASS_HASH = '967df454b46ab9a2ec8c37dd3f36b6bff9ba6a09786da2aa55a7ea0efe86416a'; // mission2026
+
+let statusData = null;
+let fileSha = null;
+let countdownTimers = {};
+
+async function sha256(msg) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function doLogin() {
+  const pass = document.getElementById('authPass').value;
+  const hash = await sha256(pass);
+  if (hash === PASS_HASH) {
+    GITHUB_TOKEN = document.getElementById('authToken').value; sessionStorage.setItem('ctrl_auth','1'); sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('mainPanel').style.display = 'block';
+    await loadStatus();
+  } else {
+    const err = document.getElementById('authErr');
+    err.style.display = 'block';
+    setTimeout(() => err.style.display = 'none', 2000);
+  }
+}
+
+// Check auth on load
+if (sessionStorage.getItem('ctrl_auth') === '1') { GITHUB_TOKEN = sessionStorage.getItem('ctrl_token') || '';
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainPanel').style.display = 'block';
+  loadStatus();
+}
+
+async function ghFetch(path, method='GET', body=null) {
+  const opts = {
+    method, headers: {
+      'Authorization': `Bearer ${GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github.v3+json',
+    }
+  };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  return fetch(`https://api.github.com/repos/${REPO}/contents/${path}`, opts);
+}
+
+async function loadStatus() {
+  try {
+    const res = await ghFetch(STATUS_FILE);
+    if (!res.ok) {
+      // Create initial file
+      await createInitialStatus();
+      return;
+    }
+    const data = await res.json();
+    fileSha = data.sha;
+    const raw = atob(data.content.replace(/\n/g, ''));
+    statusData = JSON.parse(decodeURIComponent(escape(raw)));
+    renderSystems();
+    addLog('STATUS', 'act', 'Loaded ' + Object.keys(statusData.systems).length + ' system(s)');
+  } catch(e) {
+    addLog('ERROR', 'err', e.message);
+  }
+}
+
+async function createInitialStatus() {
+  const initial = {
+    systems: {
+      'sms-system': {
+        name: 'SMS System',
+        url: 'https://smscompany26.github.io/sms-system/',
+        status: 'active',
+        disableType: null,
+        disableUntil: null,
+        disabledAt: null
+      }
+    },
+    owner: {
+      name: 'Eng. Kyrolos Ehab',
+      phone: '01228370809',
+      whatsapp: '+201228370809',
+      website: 'https://kyrolosehab.me'
+    }
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(initial, null, 2))));
+  await ghFetch(STATUS_FILE, 'PUT', {
+    message: 'Initialize status.json',
+    content: encoded
+  });
+  await loadStatus();
+}
+
+async function saveStatus() {
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(statusData, null, 2))));
+  const res = await ghFetch(STATUS_FILE, 'PUT', {
+    message: 'Update system status',
+    content: encoded,
+    sha: fileSha
+  });
+  if (res.ok) {
+    const data = await res.json();
+    fileSha = data.content.sha;
+    addLog('SYNC', 'act', 'Status saved to GitHub');
+  } else {
+    addLog('ERROR', 'err', 'Failed to save');
+    await loadStatus(); // reload to get fresh sha
+  }
+}
+
+function renderSystems() {
+  const list = document.getElementById('systemsList');
+  const systems = statusData.systems;
+  const keys = Object.keys(systems);
+  document.getElementById('systemCount').textContent = keys.length + ' نظام';
+
+  list.innerHTML = keys.map(key => {
+    const sys = systems[key];
+    // Check if temp disable expired
+    if (sys.status === 'temp-disabled' && sys.disableUntil) {
+      if (new Date(sys.disableUntil) <= new Date()) {
+        sys.status = 'active';
+        sys.disableType = null;
+        sys.disableUntil = null;
+        saveStatus();
+      }
+    }
+
+    const statusClass = sys.status === 'active' ? 'active' : sys.status === 'temp-disabled' ? 'temp-disabled' : 'disabled';
+    const statusText = sys.status === 'active' ? 'مفعّل' : sys.status === 'temp-disabled' ? 'معطّل مؤقتاً' : 'معطّل';
+
+    return `
+      <div class="system-card" id="card-${key}">
+        <div class="sys-header">
+          <div>
+            <div class="sys-name">${sys.name}</div>
+            <div class="sys-url">${sys.url}</div>
+          </div>
+          <div class="sys-status ${statusClass}">
+            <span class="dot"></span>
+            ${statusText}
+          </div>
+        </div>
+        ${sys.status === 'temp-disabled' && sys.disableUntil ? `<div class="countdown" id="cd-${key}"></div>` : ''}
+        <div class="controls">
+          <div class="ctrl-row">
+            <button class="btn btn-activate" onclick="activateSystem('${key}')" ${sys.status==='active'?'disabled style="opacity:0.5"':''}>✅ تفعيل</button>
+            <button class="btn btn-disable" onclick="disableSystem('${key}')">🚫 تعطيل دائم</button>
+          </div>
+          <div class="ctrl-row">
+            <button class="btn btn-temp" onclick="tempDisable('${key}')">⏱️ تعطيل مؤقت</button>
+            <div class="time-inputs">
+              <input type="number" class="time-input" id="days-${key}" value="0" min="0"><span class="time-label">يوم</span>
+              <input type="number" class="time-input" id="hours-${key}" value="0" min="0"><span class="time-label">ساعة</span>
+              <input type="number" class="time-input" id="mins-${key}" value="0" min="0"><span class="time-label">دقيقة</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Start countdowns
+  keys.forEach(key => {
+    const sys = systems[key];
+    if (sys.status === 'temp-disabled' && sys.disableUntil) {
+      startCountdown(key, new Date(sys.disableUntil));
+    }
+  });
+}
+
+function startCountdown(key, until) {
+  if (countdownTimers[key]) clearInterval(countdownTimers[key]);
+  function update() {
+    const el = document.getElementById(`cd-${key}`);
+    if (!el) return;
+    const diff = until - new Date();
+    if (diff <= 0) {
+      el.textContent = 'انتهت فترة التعطيل — جاري التفعيل...';
+      clearInterval(countdownTimers[key]);
+      activateSystem(key);
+      return;
+    }
+    const d = Math.floor(diff/(86400000));
+    const h = Math.floor((diff%86400000)/3600000);
+    const m = Math.floor((diff%3600000)/60000);
+    const s = Math.floor((diff%60000)/1000);
+    el.textContent = `⏱ متبقي: ${d}d ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  update();
+  countdownTimers[key] = setInterval(update, 1000);
+}
+
+async function activateSystem(key) {
+  statusData.systems[key].status = 'active';
+  statusData.systems[key].disableType = null;
+  statusData.systems[key].disableUntil = null;
+  statusData.systems[key].disabledAt = null;
+  await saveStatus();
+  renderSystems();
+  addLog('ACTIVATE', 'act', statusData.systems[key].name + ' → مفعّل');
+}
+
+async function disableSystem(key) {
+  if (!confirm(`هل أنت متأكد من تعطيل "${statusData.systems[key].name}" بشكل دائم؟`)) return;
+  statusData.systems[key].status = 'disabled';
+  statusData.systems[key].disableType = 'permanent';
+  statusData.systems[key].disableUntil = null;
+  statusData.systems[key].disabledAt = new Date().toISOString();
+  await saveStatus();
+  renderSystems();
+  addLog('DISABLE', 'err', statusData.systems[key].name + ' → معطّل دائم');
+}
+
+async function tempDisable(key) {
+  const d = parseInt(document.getElementById(`days-${key}`).value) || 0;
+  const h = parseInt(document.getElementById(`hours-${key}`).value) || 0;
+  const m = parseInt(document.getElementById(`mins-${key}`).value) || 0;
+  const totalMs = (d*86400000) + (h*3600000) + (m*60000);
+  if (totalMs <= 0) { alert('حدد المدة الأول'); return; }
+  
+  const until = new Date(Date.now() + totalMs);
+  statusData.systems[key].status = 'temp-disabled';
+  statusData.systems[key].disableType = 'temporary';
+  statusData.systems[key].disableUntil = until.toISOString();
+  statusData.systems[key].disabledAt = new Date().toISOString();
+  await saveStatus();
+  renderSystems();
+  const timeStr = (d?d+'d ':'') + (h?h+'h ':'') + (m?m+'m':'');
+  addLog('TEMP-OFF', 'warn', statusData.systems[key].name + ' → معطّل ' + timeStr);
+}
+
+function addLog(tag, cls, msg) {
+  const body = document.getElementById('logBody');
+  const now = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  body.innerHTML += `<div class="log-line"><span class="ts">[${now}]</span> <span class="${cls}">${tag}</span> ${msg}</div>`;
+  body.scrollTop = body.scrollHeight;
+}
+
+// Auto refresh every 60s
+setInterval(async () => {
+  await loadStatus();
+}, 60000);
+</script>
+</body>
+</html>

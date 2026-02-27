@@ -1,0 +1,19 @@
+{
+  "systems": {
+    "sms-system": {
+      "name": "SMS System",
+      "url": "https://smscompany26.github.io/sms-system/",
+      "status": "active",
+      "disableType": null,
+      "disableUntil": null,
+      "disabledAt": null,
+      "disabledBy": "Kyrolos"
+    }
+  },
+  "owner": {
+    "name": "Eng. Kyrolos Ehab",
+    "phone": "01228370809",
+    "whatsapp": "+201228370809",
+    "website": "https://kyrolosehab.me"
+  }
+}

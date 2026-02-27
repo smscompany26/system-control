@@ -111,6 +111,10 @@ body { font-family:'Cairo',sans-serif; background:#0a0e14; color:#e6edf3; min-he
     <p>لوحة التحكم في الأنظمة</p>
     <input type="text" id="authToken" placeholder="GitHub Token" style="margin-bottom:8px;direction:ltr;text-align:left;font-family:monospace;font-size:12px;" autocomplete="off">
     <input type="password" id="authPass" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()">
+    <label style="display:flex;align-items:center;gap:8px;color:#7d8590;font-size:13px;margin:12px 0 16px;cursor:pointer;justify-content:center;">
+      <input type="checkbox" id="authRemember" style="accent-color:#6c3ce9;width:16px;height:16px;cursor:pointer;">
+      <span>تذكرني لمدة 30 يوم</span>
+    </label>
     <button onclick="doLogin()">دخول</button>
     <p class="auth-err" id="authErr">كلمة مرور خاطئة</p>
   </div>
@@ -155,7 +159,16 @@ async function doLogin() {
   const pass = document.getElementById('authPass').value;
   const hash = await sha256(pass);
   if (hash === PASS_HASH) {
-    GITHUB_TOKEN = document.getElementById('authToken').value; sessionStorage.setItem('ctrl_auth','1'); sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
+    GITHUB_TOKEN = document.getElementById('authToken').value;
+    const remember = document.getElementById('authRemember').checked;
+    sessionStorage.setItem('ctrl_auth','1');
+    sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
+    if (remember) {
+      const expiry = Date.now() + (30*24*60*60*1000);
+      localStorage.setItem('ctrl_auth','1');
+      localStorage.setItem('ctrl_token', GITHUB_TOKEN);
+      localStorage.setItem('ctrl_expiry', expiry.toString());
+    }
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('mainPanel').style.display = 'block';
     await loadStatus();
@@ -166,8 +179,29 @@ async function doLogin() {
   }
 }
 
-// Check auth on load
-if (sessionStorage.getItem('ctrl_auth') === '1') { GITHUB_TOKEN = sessionStorage.getItem('ctrl_token') || '';
+// Check auth on load (session or localStorage)
+function checkSavedAuth() {
+  // Check sessionStorage first
+  if (sessionStorage.getItem('ctrl_auth') === '1') {
+    GITHUB_TOKEN = sessionStorage.getItem('ctrl_token') || '';
+    return true;
+  }
+  // Check localStorage (remember me)
+  const expiry = parseInt(localStorage.getItem('ctrl_expiry') || '0');
+  if (localStorage.getItem('ctrl_auth') === '1' && Date.now() < expiry) {
+    GITHUB_TOKEN = localStorage.getItem('ctrl_token') || '';
+    sessionStorage.setItem('ctrl_auth','1');
+    sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
+    return true;
+  }
+  // Expired — clean up
+  localStorage.removeItem('ctrl_auth');
+  localStorage.removeItem('ctrl_token');
+  localStorage.removeItem('ctrl_expiry');
+  return false;
+}
+
+if (checkSavedAuth()) {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('mainPanel').style.display = 'block';
   loadStatus();
@@ -186,18 +220,32 @@ async function ghFetch(path, method='GET', body=null) {
 
 async function loadStatus() {
   try {
+    // Try GitHub API first (needs token for private repos)
     const res = await ghFetch(STATUS_FILE);
-    if (!res.ok) {
-      // Create initial file
-      await createInitialStatus();
+    if (res.ok) {
+      const data = await res.json();
+      fileSha = data.sha;
+      const raw = atob(data.content.replace(/\n/g, ''));
+      statusData = JSON.parse(decodeURIComponent(escape(raw)));
+      renderSystems();
+      addLog('STATUS', 'act', 'Loaded ' + Object.keys(statusData.systems).length + ' system(s)');
       return;
     }
-    const data = await res.json();
-    fileSha = data.sha;
-    const raw = atob(data.content.replace(/\n/g, ''));
-    statusData = JSON.parse(decodeURIComponent(escape(raw)));
-    renderSystems();
-    addLog('STATUS', 'act', 'Loaded ' + Object.keys(statusData.systems).length + ' system(s)');
+    
+    // Fallback: try raw URL (works for public repos)
+    const rawRes = await fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + STATUS_FILE + '?t=' + Date.now());
+    if (rawRes.ok) {
+      statusData = await rawRes.json();
+      // Get SHA separately for writes
+      const shaRes = await ghFetch(STATUS_FILE);
+      if (shaRes.ok) { const d = await shaRes.json(); fileSha = d.sha; }
+      renderSystems();
+      addLog('STATUS', 'act', 'Loaded ' + Object.keys(statusData.systems).length + ' system(s) (raw)');
+      return;
+    }
+    
+    // Nothing found — create initial
+    await createInitialStatus();
   } catch(e) {
     addLog('ERROR', 'err', e.message);
   }

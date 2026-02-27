@@ -280,21 +280,27 @@ async function doLogin() {
 }
 
 function checkSavedAuth() {
+  let token = '';
   if (sessionStorage.getItem('ctrl_auth') === '1') {
-    GITHUB_TOKEN = sessionStorage.getItem('ctrl_token') || '';
-    return !!GITHUB_TOKEN;
+    token = sessionStorage.getItem('ctrl_token') || '';
+  } else {
+    const expiry = parseInt(localStorage.getItem('ctrl_expiry') || '0');
+    if (localStorage.getItem('ctrl_auth') === '1' && Date.now() < expiry) {
+      token = localStorage.getItem('ctrl_token') || '';
+    }
   }
-  const expiry = parseInt(localStorage.getItem('ctrl_expiry') || '0');
-  if (localStorage.getItem('ctrl_auth') === '1' && Date.now() < expiry) {
-    GITHUB_TOKEN = localStorage.getItem('ctrl_token') || '';
-    sessionStorage.setItem('ctrl_auth', '1');
-    sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
-    return !!GITHUB_TOKEN;
+  // No token = force re-login (clear stale sessions)
+  if (!token || token.length < 10) {
+    sessionStorage.clear();
+    localStorage.removeItem('ctrl_auth');
+    localStorage.removeItem('ctrl_token');
+    localStorage.removeItem('ctrl_expiry');
+    return false;
   }
-  localStorage.removeItem('ctrl_auth');
-  localStorage.removeItem('ctrl_token');
-  localStorage.removeItem('ctrl_expiry');
-  return false;
+  GITHUB_TOKEN = token;
+  sessionStorage.setItem('ctrl_auth', '1');
+  sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
+  return true;
 }
 
 function showPanel() {

@@ -186,19 +186,26 @@ async function ghFetch(path, method='GET', body=null) {
 
 async function loadStatus() {
   try {
-    addLog('DEBUG', 'warn', `Token: "${GITHUB_TOKEN.slice(0,10)}..." (${GITHUB_TOKEN.length} chars)`);
-    const res = await ghFetch(STATUS_FILE);
-    if (res.ok) {
-      const data = await res.json();
-      fileSha = data.sha;
-      const raw = atob(data.content.replace(/\n/g, ''));
-      statusData = JSON.parse(decodeURIComponent(escape(raw)));
-      addLog('LOAD', 'act', `${Object.keys(statusData.systems).length} system(s) loaded`);
-      renderSystems();
-      return true;
+    // 1. Read data from raw URL (always works, no auth needed)
+    const rawRes = await fetch(`https://raw.githubusercontent.com/${REPO}/main/${STATUS_FILE}?t=${Date.now()}`);
+    if (!rawRes.ok) {
+      addLog('ERROR', 'err', `Load failed: ${rawRes.status}`);
+      return false;
     }
-    addLog('ERROR', 'err', `Load failed: ${res.status}`);
-    return false;
+    statusData = await rawRes.json();
+
+    // 2. Get SHA for writes (needs auth)
+    const shaRes = await ghFetch(STATUS_FILE);
+    if (shaRes.ok) {
+      const d = await shaRes.json();
+      fileSha = d.sha;
+    } else {
+      addLog('WARN', 'warn', `SHA fetch: ${shaRes.status} — writes may fail`);
+    }
+
+    addLog('LOAD', 'act', `${Object.keys(statusData.systems).length} system(s) loaded`);
+    renderSystems();
+    return true;
   } catch(e) {
     addLog('ERROR', 'err', `Load error: ${e.message}`);
     return false;

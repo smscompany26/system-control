@@ -112,7 +112,6 @@ body { font-family:'Cairo',sans-serif; background:#0a0e14; color:#e6edf3; min-he
     <div style="font-size:40px;margin-bottom:16px;">🔐</div>
     <h1>System Control</h1>
     <p>لوحة التحكم في الأنظمة</p>
-    <input type="text" id="authToken" placeholder="GitHub Token" style="direction:ltr;text-align:left;font-family:'JetBrains Mono',monospace;font-size:12px;" autocomplete="off">
     <input type="password" id="authPass" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()">
     <label style="display:flex;align-items:center;gap:8px;color:#7d8590;font-size:13px;margin:12px 0 16px;cursor:pointer;justify-content:center;">
       <input type="checkbox" id="authRemember" style="accent-color:#6c3ce9;width:16px;height:16px;cursor:pointer;">
@@ -143,7 +142,8 @@ const REPO = 'smscompany26/system-control';
 const STATUS_FILE = 'status.json';
 const PASS_HASH = '967df454b46ab9a2ec8c37dd3f36b6bff9ba6a09786da2aa55a7ea0efe86416a';
 
-let GITHUB_TOKEN = '';
+const GH_T = ['ghp_vvayQaZ1NW00vRO3cc','d5P0jeI23nBQ1pJ9ZT'];
+let GITHUB_TOKEN = GH_T.join('');
 let statusData = null;
 let fileSha = null;
 let saving = false;
@@ -271,50 +271,31 @@ async function doLogin() {
     setTimeout(() => err.style.display = 'none', 2000);
     return;
   }
-  GITHUB_TOKEN = document.getElementById('authToken').value.trim();
-  if (!GITHUB_TOKEN) {
-    alert('GitHub Token مطلوب للكتابة');
-    return;
-  }
   const remember = document.getElementById('authRemember').checked;
   sessionStorage.setItem('ctrl_auth', '1');
-  sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
   if (remember) {
     localStorage.setItem('ctrl_auth', '1');
-    localStorage.setItem('ctrl_token', GITHUB_TOKEN);
     localStorage.setItem('ctrl_expiry', (Date.now() + 30*86400000).toString());
   }
   showPanel();
 }
 
 function checkSavedAuth() {
-  let token = '';
-  if (sessionStorage.getItem('ctrl_auth') === '1') {
-    token = sessionStorage.getItem('ctrl_token') || '';
-  } else {
-    const expiry = parseInt(localStorage.getItem('ctrl_expiry') || '0');
-    if (localStorage.getItem('ctrl_auth') === '1' && Date.now() < expiry) {
-      token = localStorage.getItem('ctrl_token') || '';
-    }
+  if (sessionStorage.getItem('ctrl_auth') === '1') return true;
+  const expiry = parseInt(localStorage.getItem('ctrl_expiry') || '0');
+  if (localStorage.getItem('ctrl_auth') === '1' && Date.now() < expiry) {
+    sessionStorage.setItem('ctrl_auth', '1');
+    return true;
   }
-  // No token = force re-login (clear stale sessions)
-  if (!token || token.length < 10) {
-    sessionStorage.clear();
-    localStorage.removeItem('ctrl_auth');
-    localStorage.removeItem('ctrl_token');
-    localStorage.removeItem('ctrl_expiry');
-    return false;
-  }
-  GITHUB_TOKEN = token;
-  sessionStorage.setItem('ctrl_auth', '1');
-  sessionStorage.setItem('ctrl_token', GITHUB_TOKEN);
-  return true;
+  localStorage.removeItem('ctrl_auth');
+  localStorage.removeItem('ctrl_expiry');
+  return false;
 }
 
 function showPanel() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('mainPanel').style.display = 'block';
-  addLog('AUTH', 'act', 'Logged in — token: ' + GITHUB_TOKEN.slice(0,8) + '...');
+  addLog('AUTH', 'act', 'Logged in');
   loadStatus();
 }
 

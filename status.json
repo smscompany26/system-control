@@ -3,10 +3,10 @@
     "sms-system": {
       "name": "SMS System",
       "url": "https://smscompany26.github.io/sms-system/",
-      "status": "active",
-      "disableType": null,
-      "disableUntil": null,
-      "disabledAt": null,
+      "status": "temp-disabled",
+      "disableType": "temporary",
+      "disableUntil": "2026-02-27T16:55:39.265Z",
+      "disabledAt": "2026-02-27T16:54:39.265Z",
       "disabledBy": null,
       "trial": {
         "enabled": false,

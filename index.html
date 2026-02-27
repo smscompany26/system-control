@@ -186,6 +186,7 @@ async function ghFetch(path, method='GET', body=null) {
 
 async function loadStatus() {
   try {
+    addLog('DEBUG', 'warn', `Token: "${GITHUB_TOKEN.slice(0,10)}..." (${GITHUB_TOKEN.length} chars)`);
     const res = await ghFetch(STATUS_FILE);
     if (res.ok) {
       const data = await res.json();
@@ -306,7 +307,7 @@ function checkSavedAuth() {
 function showPanel() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('mainPanel').style.display = 'block';
-  addLog('AUTH', 'act', 'Logged in');
+  addLog('AUTH', 'act', 'Logged in — token: ' + GITHUB_TOKEN.slice(0,8) + '...');
   loadStatus();
 }
 

@@ -139,11 +139,30 @@ body { font-family:'Cairo',sans-serif; background:#0a0e14; color:#e6edf3; min-he
 
 <script>
 const REPO = 'smscompany26/system-control';
+const PUBLIC_REPO = 'smscompany26/system-status';
 const STATUS_FILE = 'status.json';
 const PASS_HASH = '967df454b46ab9a2ec8c37dd3f36b6bff9ba6a09786da2aa55a7ea0efe86416a';
 
-const GH_T = ['ghp_vvayQaZ1NW00vRO3cc','d5P0jeI23nBQ1pJ9ZT'];
-let GITHUB_TOKEN = GH_T.join('');
+// Token encrypted with AES-256-GCM (key derived from password via PBKDF2)
+const ENC_TOKEN = '60fc00b0919cd07110600d3ab4274972:8c576fbca619a8eda338830b:f1ee9e615113ad792ef10aa229643f45:94d660bce1ed92b7ff23c0979f75a012608cbed165dd1964cccef4fa4a8b6d70f9b3a6d9396efbd2';
+let GITHUB_TOKEN = '';
+
+async function decryptToken(password) {
+  const [saltHex, ivHex, tagHex, dataHex] = ENC_TOKEN.split(':');
+  const salt = new Uint8Array(saltHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+  const iv = new Uint8Array(ivHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+  const tag = new Uint8Array(tagHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+  const data = new Uint8Array(dataHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+  const enc = new Uint8Array([...data, ...tag]);
+  
+  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+  );
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, enc);
+  return new TextDecoder().decode(decrypted);
+}
 let statusData = null;
 let fileSha = null;
 let saving = false;
@@ -229,7 +248,9 @@ async function saveStatus() {
     if (res.ok) {
       const data = await res.json();
       fileSha = data.content.sha;
-      addLog('SAVE', 'act', '✓ Saved to GitHub');
+      addLog('SAVE', 'act', '✓ Saved to private repo');
+      // Also sync to public status repo (stripped of sensitive data)
+      syncPublicStatus();
       return true;
     }
     // Failed — get error details
@@ -261,6 +282,37 @@ async function saveStatus() {
   }
 }
 
+async function syncPublicStatus() {
+  try {
+    // Build public version (no owner details, no sensitive info)
+    const pub = { systems: {}, contact: { method: 'whatsapp', label: 'تواصل مع المطور' } };
+    for (const [k, sys] of Object.entries(statusData.systems)) {
+      pub.systems[k] = {
+        name: sys.name, url: sys.url, status: sys.status,
+        disableType: sys.disableType, disableUntil: sys.disableUntil,
+        trial: sys.trial ? { enabled: sys.trial.enabled, endDate: sys.trial.endDate, warnDays: sys.trial.warnDays, message: sys.trial.message } : null
+      };
+    }
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(pub, null, 2))));
+    // Get current SHA from public repo
+    const r = await fetch(`https://api.github.com/repos/${PUBLIC_REPO}/contents/${STATUS_FILE}`, {
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    let pubSha = null;
+    if (r.ok) { const d = await r.json(); pubSha = d.sha; }
+    const body = { message: 'Sync status', content: encoded };
+    if (pubSha) body.sha = pubSha;
+    await fetch(`https://api.github.com/repos/${PUBLIC_REPO}/contents/${STATUS_FILE}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    addLog('SYNC', 'act', '✓ Public status synced');
+  } catch(e) {
+    addLog('WARN', 'warn', 'Public sync failed: ' + e.message);
+  }
+}
+
 // ── Auth ──
 async function doLogin() {
   const pass = document.getElementById('authPass').value;
@@ -271,24 +323,42 @@ async function doLogin() {
     setTimeout(() => err.style.display = 'none', 2000);
     return;
   }
+  try {
+    GITHUB_TOKEN = await decryptToken(pass);
+  } catch(e) {
+    alert('فشل فك تشفير المفتاح');
+    return;
+  }
   const remember = document.getElementById('authRemember').checked;
   sessionStorage.setItem('ctrl_auth', '1');
+  sessionStorage.setItem('ctrl_tk', GITHUB_TOKEN);
   if (remember) {
     localStorage.setItem('ctrl_auth', '1');
+    localStorage.setItem('ctrl_tk', GITHUB_TOKEN);
     localStorage.setItem('ctrl_expiry', (Date.now() + 30*86400000).toString());
   }
   showPanel();
 }
 
 function checkSavedAuth() {
-  if (sessionStorage.getItem('ctrl_auth') === '1') return true;
-  const expiry = parseInt(localStorage.getItem('ctrl_expiry') || '0');
-  if (localStorage.getItem('ctrl_auth') === '1' && Date.now() < expiry) {
-    sessionStorage.setItem('ctrl_auth', '1');
+  let tk = sessionStorage.getItem('ctrl_tk') || '';
+  if (sessionStorage.getItem('ctrl_auth') === '1' && tk) {
+    GITHUB_TOKEN = tk;
     return true;
   }
+  const expiry = parseInt(localStorage.getItem('ctrl_expiry') || '0');
+  tk = localStorage.getItem('ctrl_tk') || '';
+  if (localStorage.getItem('ctrl_auth') === '1' && Date.now() < expiry && tk) {
+    GITHUB_TOKEN = tk;
+    sessionStorage.setItem('ctrl_auth', '1');
+    sessionStorage.setItem('ctrl_tk', tk);
+    return true;
+  }
+  // Clear stale
   localStorage.removeItem('ctrl_auth');
+  localStorage.removeItem('ctrl_tk');
   localStorage.removeItem('ctrl_expiry');
+  sessionStorage.clear();
   return false;
 }
 
